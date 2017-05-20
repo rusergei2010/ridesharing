@@ -3,6 +3,7 @@
 !gradle/wrapper/gradle-wrapper.jar
 backend/src/main/resources/META-INF/resources
 frontend/node_modules
+wireframes
 
 ### STS ###
 .apt_generated

@@ -1,0 +1,89 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+
+plugins {
+    id "com.moowork.node" version "1.1.1"
+}
+
+node {
+    version = '7.9.0'
+    yarnVersion = '0.23.4'
+    download = true
+    workDir = file("${project.buildDir}/nodejs")
+    npmWorkDir = file("${project.buildDir}/npm")
+    yarnWorkDir = file("${project.buildDir}/yarn")
+    nodeModulesDir = file("${project.projectDir}")
+}
+
+task nodeClean(type: Delete) {
+    delete "${project.buildDir}"
+    delete "${project.projectDir}/node_modules"
+}
+
+task clean {}
+clean.dependsOn(nodeClean)
+
+def findShortestPath(glob) {
+    new FileNameFinder().getFileNames("$project.buildDir", glob).sort({ a, b -> a.length() <=> b.length() })[0]
+}
+
+def generateHelperScript(String script, Closure pattern) {
+    def yarnFile = findShortestPath('**/yarn')
+    def yarnBase = file(yarnFile).parent
+    def nodeFile = findShortestPath('**/node **/node.exe')
+    def nodeBase = file(nodeFile).parent
+    def res = pattern(nodeBase, yarnBase, yarnFile).stripMargin()
+    file(script).text = res
+    file(script).executable = true
+}
+
+task createYarnScriptForWin {
+    doLast {
+        generateHelperScript("y.cmd", { nodeBase, yarnBase, yarnFile ->
+            """@SETLOCAL
+            |@SET YARN_PATH=$yarnBase
+            |@SET NODE_PATH=$nodeBase
+            |@SET PATH=%YARN_PATH%;%NODE_PATH%;%PATH%
+            |@SET YARN=$yarnFile
+            |%YARN% %*
+            |"""})
+    }
+}
+createYarnScriptForWin.onlyIf { Os.isFamily(Os.FAMILY_WINDOWS) }
+
+task createYarnScriptForNotWin {
+    doLast {
+        generateHelperScript("y.sh", { nodeBase, yarnBase, yarnFile ->
+            """#!/bin/sh
+            |YARN_PATH=$yarnBase
+            |NODE_PATH=$nodeBase
+            |PATH=\$YARN_PATH:\$NODE_PATH:\$PATH
+            |YARN=$yarnFile
+            |\$YARN \$*
+            |"""})
+    }
+}
+createYarnScriptForNotWin.onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
+
+task createYarnScript {}
+createYarnScript.dependsOn([createYarnScriptForWin, createYarnScriptForNotWin])
+
+task devSetup {}
+devSetup.dependsOn([yarn, createYarnScript])
+createYarnScript.shouldRunAfter yarn
+
+task devCleanSetup {}
+devCleanSetup.dependsOn([clean, devSetup])
+devSetup.shouldRunAfter clean
+
+task yarnCleanDist(type: YarnTask) {
+    args = ['run', 'clean:dist']
+}
+
+task yarnBuildProd(type: YarnTask) {
+    args = ['run', 'build:prod']
+}
+
+task buildProd {}
+buildProd.dependsOn([yarn, yarnCleanDist, yarnBuildProd])
+yarnCleanDist.shouldRunAfter yarn
+yarnBuildProd.shouldRunAfter yarnCleanDist
