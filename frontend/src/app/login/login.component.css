@@ -1,0 +1,14 @@
+.welcome {
+    text-align: center;
+    font-size: 25pt;
+}
+
+.loginForm {
+    width: 250px;
+    margin: auto;
+    padding: 100px 0;
+}
+
+.loginForm md-input-container, .loginForm button {
+    width: 100%;
+}
